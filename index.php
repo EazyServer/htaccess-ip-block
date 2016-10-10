@@ -1,6 +1,6 @@
 <?php
 /*
-  Plugin Name: Htaccess IP block Map
+  Plugin Name: Htaccess IP block
   Version: 1.0
   Plugin URI:
   Description: Block IPs using .htaccess rather than PHP
@@ -8,23 +8,27 @@
   Author URI:
  */
 
-function htaccess_rewrite_map_install() {
+if(!class_exists('WP_List_Table')){
+	require_once( ABSPATH . 'wp-admin/includes/class-wp-list-table.php' );
+}
+
+function htaccess_ip_block_install() {
 	$fileName = get_option('HTACCESS_IP_BLOCK_FILE_MAP_NAME');
 	if(empty($fileName)){
-		$fileName = HtaccessRewriteMap::generateRandomString();
+		$fileName = HtaccessIpBlock::generateRandomString();
 		add_option('HTACCESS_IP_BLOCK_FILE_MAP_NAME', $fileName.'.txt');
 	}
-	HtaccessRewriteMap::createSqlTables();
+	HtaccessIpBlock::createSqlTables();
+	HtaccessIpBlock::createHtaccessMapFile();
+
 }
 
-register_activation_hook( __FILE__, 'htaccess_rewrite_map_install' );
+register_activation_hook( __FILE__, 'htaccess_ip_block_install' );
 
 
-if ( is_admin() ) {
-	new HtaccessRewriteMap();
-}
 
-class HtaccessRewriteMap {
+
+class HtaccessIpBlock {
 
 	const SQL_TABLE_NAME = 'htaccess_map';
 
@@ -43,7 +47,13 @@ class HtaccessRewriteMap {
 	 * Start up
 	 */
 	public function __construct() {
-		add_action( 'admin_menu', [ $this, 'add_plugin_page' ] );
+		if(is_multisite()){
+			add_action('network_admin_menu', [$this, 'add_plugin_page_network']);
+		}
+		else {
+			add_action( 'admin_menu', [ $this, 'add_plugin_page' ] );
+		}
+
 		add_action( 'admin_init', [ $this, 'page_init' ] );
 	}
 
@@ -51,10 +61,18 @@ class HtaccessRewriteMap {
 	 * Add options page
 	 */
 	public function add_plugin_page() {
-		add_options_page( 'HtaccessMap',
-			'HtaccessMap',
+		add_menu_page( '.htaccess IP Block',
+			'<.ht> IP Block',
 			'manage_options',
-			'HtaccessMap',
+			'htaccess_ip_block',
+			array( $this, 'create_admin_page' ) );
+	}
+
+	public function add_plugin_page_network() {
+		add_menu_page( '.htaccess IP Block',
+			'<.ht> IP Block',
+			'manage_network',
+			'htaccess_ip_block',
 			array( $this, 'create_admin_page' ) );
 	}
 
@@ -64,7 +82,7 @@ class HtaccessRewriteMap {
 	public function create_admin_page() {
 
 		{
-			?><h1>.htaccess IP block Map</h1>
+			?><h1><.htaccess> IP block Map</h1>
 
 			<table class="form-table" style="width: 100%;">
 
@@ -84,10 +102,10 @@ RewriteRule ^ - [L,F]</pre>
 								<font color="#8b0000">*If you disable this plugin <b>remember</b> to <b>remove</b> these
 									configurations!</font>
 							</li>
-							<li>Click on "Generate" button to create
-								"<?= HtaccessRewriteMap::getFileName() ?>"
-								file
-							</li>
+							<?php if(!is_writable(get_home_path() . self::getFileName())) {
+								?><li>You need to create this file "<?= get_home_path() . self::getFileName(); ?>" manually.</li><?php
+							}
+							?>
 							<li>Now you can restart apache server so the changes on 3 can take effect.</li>
 							<li>Enjoy blocking IPs!</li>
 						</ol>
@@ -99,14 +117,7 @@ RewriteRule ^ - [L,F]</pre>
 					<td>
 						<input type="text" id="manual_ip" placeholder="xxx.xxx.xxx.xxx"/>
 						<input type="button" name="manual_block_button" id="manual_block_button" class="button button-primary" value="Block"/>
-					</td>
-				</tr>
-
-				<tr valign="top">
-					<th scope="row">Generate IP blacklist map</th>
-					<td>
-						<input type="button" name="generate_map" id="generate_map" class="button button-primary" value="Generate"/><br>
-						<pre>This will re-generate "<?= ABSPATH.self::getFileName() ?>" file.</pre>
+						<span id="status_of_manual_block"></span>
 					</td>
 				</tr>
 
@@ -127,7 +138,11 @@ RewriteRule ^ - [L,F]</pre>
 					<td colspan="2">
 						<div id="notif">
 							<ul>
-								<liIMPORT_WF_IPS_NONCE_MSG>#IPs blacklisted:</liIMPORT_WF_IPS_NONCE_MSG>
+								<?php
+								$wp_list_table = new IpListTable();
+								$wp_list_table->prepare_items();
+								$wp_list_table->display();
+								?>
 							</ul>
 						</div>
 					</td>
@@ -159,9 +174,14 @@ RewriteRule ^ - [L,F]</pre>
 							'post_data': JSON.stringify( post_data ),
 						};
 						jQuery.post( ajaxurl, data, function ( response ) {
-							var responseObject = JSON.parse( response );
-							console.log( responseObject );
 							jQuery( '#manual_block_button' ).prop( 'disabled', false ).val( 'Block' );
+							if(response == 1) {
+								jQuery( '#status_of_manual_block' ).html(jQuery( '#manual_ip' ).val()+' blocked successfully.');
+							}
+							else if(response == -1) {
+								jQuery( '#status_of_manual_block' ).html(jQuery( '#manual_ip' ).val()+' already blocked!');
+							}
+							jQuery( '#manual_ip' ).val('');
 						} );
 					}
 					else {
@@ -171,16 +191,16 @@ RewriteRule ^ - [L,F]</pre>
 
 				function importWordfenceIps() {
 
-						jQuery( '#import_wordfence_ips' ).prop( 'disabled', true ).val( 'Importing...' );
+					jQuery( '#import_wordfence_ips' ).prop( 'disabled', true ).val( 'Importing...' );
 
-						var data = {
-							'action'   : '<?=self::IMPORT_WF_IPS_ACTION_NAME?>',
-							'nonce'    : '<?=wp_create_nonce( self::IMPORT_WF_IPS_NONCE_MSG ); ?>',
-						};
-						jQuery.post( ajaxurl, data, function ( counter ) {
-							jQuery( '#import_wordfence_ips' ).prop( 'disabled', false ).val( 'Import' );
-							jQuery( '#number_of_imported_ips' ).html( '<b>'+counter+'</b> IP(s) imported successfully from Wordfence.' );
-						} );
+					var data = {
+						'action'   : '<?=self::IMPORT_WF_IPS_ACTION_NAME?>',
+						'nonce'    : '<?=wp_create_nonce( self::IMPORT_WF_IPS_NONCE_MSG ); ?>',
+					};
+					jQuery.post( ajaxurl, data, function ( counter ) {
+						jQuery( '#import_wordfence_ips' ).prop( 'disabled', false ).val( 'Import' );
+						jQuery( '#number_of_imported_ips' ).html( '<b>'+counter+'</b> IP(s) imported successfully from Wordfence.' );
+					} );
 				}
 			</script><?php
 		}
@@ -220,19 +240,10 @@ RewriteRule ^ - [L,F]</pre>
 		);
 	}
 
-	public static function addIpToBlacklistMap( $ip ) {
-
+	public static function writeIPsMap() {
 		global $wpdb;
 
 		$table_name = $wpdb->prefix . self::SQL_TABLE_NAME;
-		$results    = $wpdb->get_results( $wpdb->prepare(
-			"SELECT id FROM " . $table_name . " WHERE ip = %s", $ip
-		) );
-
-		if ( ! count( $results ) ) {
-			$wpdb->insert( $table_name, array( 'ip' => $ip ), array( '%s' ) );
-		}
-
 		$results = $wpdb->get_results( "SELECT ip FROM " . $table_name );
 
 		if ( count( $results ) ) {
@@ -252,6 +263,21 @@ RewriteRule ^ - [L,F]</pre>
 		}
 	}
 
+	public static function addIpToBlacklistMap( $ip ) {
+		global $wpdb;
+
+		$table_name = $wpdb->prefix . self::SQL_TABLE_NAME;
+		$results    = $wpdb->get_results( $wpdb->prepare(
+			"SELECT id FROM " . $table_name . " WHERE ip = %s", $ip
+		) );
+
+		if ( empty( $results ) ) {
+			$wpdb->insert( $table_name, array( 'ip' => $ip ), array( '%s' ) );
+			return 1; // add ip to the map
+		}
+		return -1; // ip already in the map
+	}
+
 	public static function importIpsFromWordfence( ) {
 
 		$wfReport = new wfActivityReport();
@@ -266,6 +292,7 @@ RewriteRule ^ - [L,F]</pre>
 
 			$counter++;
 		}
+		self::writeIPsMap();
 		return $counter;
 	}
 
@@ -273,6 +300,16 @@ RewriteRule ^ - [L,F]</pre>
 		return get_option('HTACCESS_IP_BLOCK_FILE_MAP_NAME');
 	}
 
+	public static function createHtaccessMapFile() {
+		$file_name = get_home_path() . self::getFileName();
+		if(is_writable($file_name)) {
+			$file = fopen( $file_name, 'w' );
+			fclose( $file );
+		}
+		else {
+			echo $file_name. 'is not writable! try creating the file manually!';
+		}
+	}
 
 	public static function createSqlTables() {
 		global $wpdb;
@@ -302,32 +339,185 @@ RewriteRule ^ - [L,F]</pre>
 	}
 }
 
-add_action( 'wp_ajax_' . HtaccessRewriteMap::MANUAL_IP_BLOCK_ACTION_NAME, 'hbmBlockIp' );
+
+class IpListTable extends WP_List_Table
+{
+	const SQL_TABLE_NAME = 'htaccess_map';
+	/**
+	 * Prepare the items for the table to process
+	 *
+	 * @return Void
+	 */
+	public function prepare_items()
+	{
+		$columns = $this->get_columns();
+		$hidden = $this->get_hidden_columns();
+		$sortable = $this->get_sortable_columns();
+
+		$data = $this->table_data();
+		usort( $data, array( &$this, 'sort_data' ) );
+
+		$perPage = 20;
+		$currentPage = $this->get_pagenum();
+		$totalItems = count($data);
+
+		$this->set_pagination_args( array(
+			'total_items' => $totalItems,
+			'per_page'    => $perPage
+		) );
+
+		$data = array_slice($data,(($currentPage-1)*$perPage),$perPage);
+
+		$this->_column_headers = array($columns, $hidden, $sortable);
+		$this->items = $data;
+	}
+
+	/**
+	 * Override the parent columns method. Defines the columns to use in your listing table
+	 *
+	 * @return Array
+	 */
+	public function get_columns()
+	{
+		$columns = array(
+			'id'          => 'ID',
+			'ip'       => 'IP address',
+		);
+
+		return $columns;
+	}
+
+	/**
+	 * Define which columns are hidden
+	 *
+	 * @return Array
+	 */
+	public function get_hidden_columns()
+	{
+		return array();
+	}
+
+	/**
+	 * Define the sortable columns
+	 *
+	 * @return Array
+	 */
+	public function get_sortable_columns()
+	{
+		return array(
+			'id' => array('id', false),
+			'ip' => array('ip', false)
+		);
+	}
+
+	/**
+	 * Get the table data
+	 *
+	 * @return Array
+	 */
+	private function table_data()
+	{
+		$data = array();
+
+		global $wpdb, $_wp_column_headers;
+
+		$query = 'SELECT * FROM '.$wpdb->prefix.self::SQL_TABLE_NAME;
+		$data = $wpdb->get_results($query , ARRAY_A);
+
+		return $data;
+	}
+
+	/**
+	 * Define what data to show on each column of the table
+	 *
+	 * @param  Array $item        Data
+	 * @param  String $column_name - Current column name
+	 *
+	 * @return Mixed
+	 */
+	public function column_default( $item, $column_name )
+	{
+		switch( $column_name ) {
+			case 'id':
+			case 'ip':
+				return $item[ $column_name ];
+
+			default:
+				return print_r( $item, true ) ;
+		}
+	}
+
+
+
+	/**
+	 * Allows you to sort the data by the variables set in the $_GET
+	 *
+	 * @return Mixed
+	 */
+	private function sort_data( $a, $b )
+	{
+		// Set defaults
+		$orderby = 'id';
+		$order = 'asc';
+
+		// If orderby is set, use this as the sort column
+		if(!empty($_GET['orderby']))
+		{
+			$orderby = $_GET['orderby'];
+		}
+
+		// If order is set use this as the order
+		if(!empty($_GET['order']))
+		{
+			$order = $_GET['order'];
+		}
+
+
+		$result = strnatcmp( $a[$orderby], $b[$orderby] );
+
+		if($order === 'asc')
+		{
+			return $result;
+		}
+
+		return -$result;
+	}
+}
+
+
+
+add_action( 'wp_ajax_' . HtaccessIpBlock::MANUAL_IP_BLOCK_ACTION_NAME, 'hbmBlockIp' );
 
 function hbmBlockIp() {
 
-	if ( ! wp_verify_nonce( $_POST[ 'nonce' ], HtaccessRewriteMap::MANUAL_IP_BLOCK_NONCE_MSG ) ) {
+	if ( ! wp_verify_nonce( $_POST[ 'nonce' ], HtaccessIpBlock::MANUAL_IP_BLOCK_NONCE_MSG ) ) {
 		exit( "No dodgy business please" );
 	}
 
 	if ( is_admin() ) {
 		$postData = json_decode( stripcslashes( $_POST[ 'post_data' ] ), true );
-		HtaccessRewriteMap::addIpToBlacklistMap( $postData[ 'ip' ] );
+		$flag = HtaccessIpBlock::addIpToBlacklistMap( $postData[ 'ip' ] );
+		HtaccessIpBlock::writeIPsMap();
+		echo $flag;
 	}
-	exit;
+	exit(0);
 }
 
-add_action( 'wp_ajax_' . HtaccessRewriteMap::IMPORT_WF_IPS_ACTION_NAME, 'hmImportWordfenceIps' );
+add_action( 'wp_ajax_' . HtaccessIpBlock::IMPORT_WF_IPS_ACTION_NAME, 'hmImportWordfenceIps' );
 
 function hmImportWordfenceIps() {
 
-	if ( ! wp_verify_nonce( $_POST[ 'nonce' ], HtaccessRewriteMap::IMPORT_WF_IPS_NONCE_MSG ) ) {
+	if ( ! wp_verify_nonce( $_POST[ 'nonce' ], HtaccessIpBlock::IMPORT_WF_IPS_NONCE_MSG ) ) {
 		exit( "No dodgy business please" );
 	}
 
 	if ( is_admin() ) {
-		$counter = HtaccessRewriteMap::importIpsFromWordfence();
-		return $counter;
+		$counter = HtaccessIpBlock::importIpsFromWordfence();
+		echo $counter;
 	}
-	exit;
+	exit(0);
+}
+
+if ( is_admin() ) {
+	new HtaccessIpBlock();
 }
