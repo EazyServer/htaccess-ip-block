@@ -1,9 +1,9 @@
 <?php
 /*
-  Plugin Name: Htaccess IP block
+  Plugin Name: .htaccess IP block
   Version: 1.0
   Plugin URI:
-  Description: Block IPs using .htaccess NOT PHP
+  Description: IPs blocking using .htaccess Not PHP!
   Author: Yarob Al-Taay
   Author URI:
  */
@@ -97,10 +97,10 @@ class HtaccessIpBlock {
 							<li>Access to Apache server configuration.</li>
 							<li>Add these lines to your <b>apache server configuration</b> (make sure to add to the desginated site (virtual host) not the entire server.)
 								<pre style="background: darkgray;padding: 15px;">RewriteEngine On
-RewriteMap access txt:<?= get_home_path() . self::getFileName(); ?></pre>
+RewriteMap deny txt:<?= get_home_path() . self::getFileName(); ?></pre>
 								and these line to your <b>.htaccess file</b> in "<?= get_home_path(); ?>"
 								<pre style="background: darkgray;padding: 15px;">RewriteEngine On
-RewriteCond ${access:%{REMOTE_ADDR}} deny [NC]
+RewriteCond ${deny:%{REMOTE_ADDR}} deny [NC]
 RewriteRule ^ - [L,F]</pre>
 								<font color="#8b0000">*If you disable this plugin <b>remember</b> to <b>remove</b> these
 									configurations!</font>
