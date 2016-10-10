@@ -3,13 +3,16 @@
   Plugin Name: Htaccess IP block
   Version: 1.0
   Plugin URI:
-  Description: Block IPs using .htaccess rather than PHP
+  Description: Block IPs using .htaccess NOT PHP
   Author: Yarob Al-Taay
   Author URI:
  */
 
+define( 'HTACCESS_IP_BLOCK_PATH', plugin_dir_path( __FILE__ ) );
+
+
 if(!class_exists('WP_List_Table')){
-	require_once( ABSPATH . 'wp-admin/includes/class-wp-list-table.php' );
+	require_once( HTACCESS_IP_BLOCK_PATH . 'inc/IpListTable.php' );
 }
 
 function htaccess_ip_block_install() {
@@ -106,7 +109,7 @@ RewriteRule ^ - [L,F]</pre>
 								?><li>You need to create this file "<?= get_home_path() . self::getFileName(); ?>" manually.</li><?php
 							}
 							?>
-							<li>Now you can restart apache server so the changes on 3 can take effect.</li>
+							<li>Now you can restart apache server so the changes on 3 takes effect.</li>
 							<li>Enjoy blocking IPs!</li>
 						</ol>
 					</td>
@@ -117,6 +120,14 @@ RewriteRule ^ - [L,F]</pre>
 					<td>
 						<input type="text" id="manual_ip" placeholder="xxx.xxx.xxx.xxx"/>
 						<input type="button" name="manual_block_button" id="manual_block_button" class="button button-primary" value="Block"/>
+						<br >
+						<?php
+						if ( is_plugin_active( 'wordfence/wordfence.php' ) ) {
+
+							?><input type="checkbox" name="block_on_wordfence" id="block_on_wordfence" value="block" checked />Block on Wordfence too<?php
+						}
+						?>
+						<br >
 						<span id="status_of_manual_block"></span>
 					</td>
 				</tr>
@@ -125,7 +136,7 @@ RewriteRule ^ - [L,F]</pre>
 				if ( is_plugin_active( 'wordfence/wordfence.php' ) ) {
 
 					?><tr valign="top">
-						<th scope="row">Import blocked Ips from Wordfence</th>
+						<th scope="row">Import from Wordfence</th>
 						<td>
 							<input type="button" name="import_wordfence_ips" id="import_wordfence_ips" class="button button-primary" value="Import"/>
 							<span id="number_of_imported_ips"></span>
@@ -148,61 +159,9 @@ RewriteRule ^ - [L,F]</pre>
 					</td>
 				</tr>
 			</table>
-			<script>
-				jQuery( document ).ready( function () {
-					jQuery( '#manual_block_button' ).click( function () {
-						manualIpBlock();
-					} );
+			<?php
 
-					jQuery( '#import_wordfence_ips' ).click( function () {
-						importWordfenceIps();
-					} );
-
-				} );
-
-				function manualIpBlock() {
-					if ( jQuery( '#manual_ip' ).val() != '' ) {
-						jQuery( '#manual_block_button' ).prop( 'disabled', true ).val( 'Blocking...' );
-
-						var post_data = {
-							ip: jQuery( '#manual_ip' ).val()
-						};
-
-						var data = {
-							'action'   : '<?=self::MANUAL_IP_BLOCK_ACTION_NAME?>',
-							'nonce'    : '<?=wp_create_nonce( self::MANUAL_IP_BLOCK_NONCE_MSG ); ?>',
-							'post_data': JSON.stringify( post_data ),
-						};
-						jQuery.post( ajaxurl, data, function ( response ) {
-							jQuery( '#manual_block_button' ).prop( 'disabled', false ).val( 'Block' );
-							if(response == 1) {
-								jQuery( '#status_of_manual_block' ).html(jQuery( '#manual_ip' ).val()+' blocked successfully.');
-							}
-							else if(response == -1) {
-								jQuery( '#status_of_manual_block' ).html(jQuery( '#manual_ip' ).val()+' already blocked!');
-							}
-							jQuery( '#manual_ip' ).val('');
-						} );
-					}
-					else {
-						alert( 'Please add a valid ip address' );
-					}
-				}
-
-				function importWordfenceIps() {
-
-					jQuery( '#import_wordfence_ips' ).prop( 'disabled', true ).val( 'Importing...' );
-
-					var data = {
-						'action'   : '<?=self::IMPORT_WF_IPS_ACTION_NAME?>',
-						'nonce'    : '<?=wp_create_nonce( self::IMPORT_WF_IPS_NONCE_MSG ); ?>',
-					};
-					jQuery.post( ajaxurl, data, function ( counter ) {
-						jQuery( '#import_wordfence_ips' ).prop( 'disabled', false ).val( 'Import' );
-						jQuery( '#number_of_imported_ips' ).html( '<b>'+counter+'</b> IP(s) imported successfully from Wordfence.' );
-					} );
-				}
-			</script><?php
+			require_once( HTACCESS_IP_BLOCK_PATH . 'inc/jquery.php' );
 		}
 	}
 
@@ -246,21 +205,21 @@ RewriteRule ^ - [L,F]</pre>
 		$table_name = $wpdb->prefix . self::SQL_TABLE_NAME;
 		$results = $wpdb->get_results( "SELECT ip FROM " . $table_name );
 
+		$file_name = get_home_path() . self::getFileName();
+
+		if ( file_exists( $file_name ) ) {
+			unlink( $file_name );
+		}
+
+		$file = fopen( $file_name, 'w' );
+
 		if ( count( $results ) ) {
-			$file_name = get_home_path() . self::getFileName();
-
-			if ( file_exists( $file_name ) ) {
-				unlink( $file_name );
-			}
-
-			$file = fopen( $file_name, 'w' );
-
 			foreach ( $results as $ipObject ) {
 				fwrite( $file, $ipObject->ip . " deny\n" );
 			}
-
-			fclose( $file );
 		}
+
+		fclose( $file );
 	}
 
 	public static function addIpToBlacklistMap( $ip ) {
@@ -276,6 +235,22 @@ RewriteRule ^ - [L,F]</pre>
 			return 1; // add ip to the map
 		}
 		return -1; // ip already in the map
+	}
+
+	public static function deleteIpFromBlacklistMap( $id ) {
+		global $wpdb;
+
+		$table_name = $wpdb->prefix . self::SQL_TABLE_NAME;
+
+		$results    = $wpdb->get_results( $wpdb->prepare(
+			"SELECT id FROM " . $table_name . " WHERE id = %s", $id
+		) );
+
+		if ( !empty( $results ) ) {
+			$wpdb->delete( $table_name, array( 'id' => $id ) );
+			return 1; // ip deleted from the map
+		}
+		return -1; // ip not in the map!
 	}
 
 	public static function importIpsFromWordfence( ) {
@@ -319,9 +294,10 @@ RewriteRule ^ - [L,F]</pre>
 		$table_name      = $wpdb->prefix . self::SQL_TABLE_NAME;
 
 		$sql = "CREATE TABLE $table_name (
-  id mediumint(9) NOT NULL AUTO_INCREMENT,
-  ip varchar(16) NOT NULL,
-  source varchar(10) DEFAULT '' NOT NULL,
+  `id` mediumint(9) NOT NULL AUTO_INCREMENT,
+  `ip` varchar(16) NOT NULL,
+  `source` varchar(10) DEFAULT '' NOT NULL,
+  `date_added` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY  (id)
 ) $charset_collate;";
 
@@ -339,184 +315,8 @@ RewriteRule ^ - [L,F]</pre>
 	}
 }
 
+require_once( HTACCESS_IP_BLOCK_PATH . 'inc/ajax.php' );
 
-class IpListTable extends WP_List_Table
-{
-	const SQL_TABLE_NAME = 'htaccess_map';
-	/**
-	 * Prepare the items for the table to process
-	 *
-	 * @return Void
-	 */
-	public function prepare_items()
-	{
-		$columns = $this->get_columns();
-		$hidden = $this->get_hidden_columns();
-		$sortable = $this->get_sortable_columns();
-
-		$data = $this->table_data();
-		usort( $data, array( &$this, 'sort_data' ) );
-
-		$perPage = 20;
-		$currentPage = $this->get_pagenum();
-		$totalItems = count($data);
-
-		$this->set_pagination_args( array(
-			'total_items' => $totalItems,
-			'per_page'    => $perPage
-		) );
-
-		$data = array_slice($data,(($currentPage-1)*$perPage),$perPage);
-
-		$this->_column_headers = array($columns, $hidden, $sortable);
-		$this->items = $data;
-	}
-
-	/**
-	 * Override the parent columns method. Defines the columns to use in your listing table
-	 *
-	 * @return Array
-	 */
-	public function get_columns()
-	{
-		$columns = array(
-			'id'          => 'ID',
-			'ip'       => 'IP address',
-		);
-
-		return $columns;
-	}
-
-	/**
-	 * Define which columns are hidden
-	 *
-	 * @return Array
-	 */
-	public function get_hidden_columns()
-	{
-		return array();
-	}
-
-	/**
-	 * Define the sortable columns
-	 *
-	 * @return Array
-	 */
-	public function get_sortable_columns()
-	{
-		return array(
-			'id' => array('id', false),
-			'ip' => array('ip', false)
-		);
-	}
-
-	/**
-	 * Get the table data
-	 *
-	 * @return Array
-	 */
-	private function table_data()
-	{
-		$data = array();
-
-		global $wpdb, $_wp_column_headers;
-
-		$query = 'SELECT * FROM '.$wpdb->prefix.self::SQL_TABLE_NAME;
-		$data = $wpdb->get_results($query , ARRAY_A);
-
-		return $data;
-	}
-
-	/**
-	 * Define what data to show on each column of the table
-	 *
-	 * @param  Array $item        Data
-	 * @param  String $column_name - Current column name
-	 *
-	 * @return Mixed
-	 */
-	public function column_default( $item, $column_name )
-	{
-		switch( $column_name ) {
-			case 'id':
-			case 'ip':
-				return $item[ $column_name ];
-
-			default:
-				return print_r( $item, true ) ;
-		}
-	}
-
-
-
-	/**
-	 * Allows you to sort the data by the variables set in the $_GET
-	 *
-	 * @return Mixed
-	 */
-	private function sort_data( $a, $b )
-	{
-		// Set defaults
-		$orderby = 'id';
-		$order = 'asc';
-
-		// If orderby is set, use this as the sort column
-		if(!empty($_GET['orderby']))
-		{
-			$orderby = $_GET['orderby'];
-		}
-
-		// If order is set use this as the order
-		if(!empty($_GET['order']))
-		{
-			$order = $_GET['order'];
-		}
-
-
-		$result = strnatcmp( $a[$orderby], $b[$orderby] );
-
-		if($order === 'asc')
-		{
-			return $result;
-		}
-
-		return -$result;
-	}
-}
-
-
-
-add_action( 'wp_ajax_' . HtaccessIpBlock::MANUAL_IP_BLOCK_ACTION_NAME, 'hbmBlockIp' );
-
-function hbmBlockIp() {
-
-	if ( ! wp_verify_nonce( $_POST[ 'nonce' ], HtaccessIpBlock::MANUAL_IP_BLOCK_NONCE_MSG ) ) {
-		exit( "No dodgy business please" );
-	}
-
-	if ( is_admin() ) {
-		$postData = json_decode( stripcslashes( $_POST[ 'post_data' ] ), true );
-		$flag = HtaccessIpBlock::addIpToBlacklistMap( $postData[ 'ip' ] );
-		HtaccessIpBlock::writeIPsMap();
-		echo $flag;
-	}
-	exit(0);
-}
-
-add_action( 'wp_ajax_' . HtaccessIpBlock::IMPORT_WF_IPS_ACTION_NAME, 'hmImportWordfenceIps' );
-
-function hmImportWordfenceIps() {
-
-	if ( ! wp_verify_nonce( $_POST[ 'nonce' ], HtaccessIpBlock::IMPORT_WF_IPS_NONCE_MSG ) ) {
-		exit( "No dodgy business please" );
-	}
-
-	if ( is_admin() ) {
-		$counter = HtaccessIpBlock::importIpsFromWordfence();
-		echo $counter;
-	}
-	exit(0);
-}
 
 if ( is_admin() ) {
 	new HtaccessIpBlock();
