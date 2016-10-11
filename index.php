@@ -114,8 +114,7 @@ RewriteRule ^ - [L,F]
 						<br>
 						<?php
 						if ( is_plugin_active( 'wordfence/wordfence.php' )
-						     and method_exists(new wfLog(), 'blockIP') ) {
-
+						     and method_exists(new wfLog(null, null), 'blockIP') ) {
 							?>
 							<input type="checkbox" name="block_on_wordfence" id="block_on_wordfence" value="block" checked/>Block on Wordfence too<?php
 						}
@@ -299,7 +298,7 @@ RewriteRule ^ - [L,F]
   `id` mediumint(9) NOT NULL AUTO_INCREMENT,
   `ip` varchar(16) NOT NULL,
   `source` varchar(10) DEFAULT '' NOT NULL,
-  `date_added` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `date_added` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY  (id)
 ) $charset_collate;";
 
