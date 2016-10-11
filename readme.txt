@@ -7,10 +7,9 @@ License: GPLv2
 This plugin uses the power of Apache server to block unwanted IP addresses from accessing or harming your Wordpress site.
 
 == Description ==
-Utilising Apache server to block IP addresses should reduce the load on php and/or mySql servers. As this plugin will eliminate
-the need to process HTTP requests and then matching the referrer IP address with blacklist stored on mySql.
+Utilising Apache server to block IP addresses should reduce the load on php and/or mySql servers. As this plugin will eliminate the need to process HTTP requests and then matching the referrer IP address with blacklist stored on mySql.
 
-This plugin can also integrate with Wordfence Security (if installed) to import blocked IPs from Wordfence and also block Ips on Wordfence.
+This plugin can also integrate with Wordfence Security (if installed) to import blocked IPs from Wordfence and also block IPs on Wordfence.
 
 
 How to use:
