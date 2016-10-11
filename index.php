@@ -1,9 +1,9 @@
 <?php
 /*
-  Plugin Name: .htaccess IP block
+  Plugin Name: &lt;.htaccess&gt; IP block
   Version: 1.0
   Plugin URI:
-  Description: IPs blocking using .htaccess Not PHP!
+  Description: IPs blocking using .htaccess Not PHP! Blocking IPs at Apache level will reduce the load on php!
   Author: Yarob Al-Taay
   Author URI:
  */
@@ -11,15 +11,15 @@
 define( 'HTACCESS_IP_BLOCK_PATH', plugin_dir_path( __FILE__ ) );
 
 
-if(!class_exists('WP_List_Table')){
+if ( ! class_exists( 'WP_List_Table' ) ) {
 	require_once( HTACCESS_IP_BLOCK_PATH . 'inc/IpListTable.php' );
 }
 
 function htaccess_ip_block_install() {
-	$fileName = get_option('HTACCESS_IP_BLOCK_FILE_MAP_NAME');
-	if(empty($fileName)){
+	$fileName = get_option( 'HTACCESS_IP_BLOCK_FILE_MAP_NAME' );
+	if ( empty( $fileName ) ) {
 		$fileName = HtaccessIpBlock::generateRandomString();
-		add_option('HTACCESS_IP_BLOCK_FILE_MAP_NAME', $fileName.'.txt');
+		add_option( 'HTACCESS_IP_BLOCK_FILE_MAP_NAME', $fileName . '.txt' );
 	}
 	HtaccessIpBlock::createSqlTables();
 	HtaccessIpBlock::createHtaccessMapFile();
@@ -27,8 +27,6 @@ function htaccess_ip_block_install() {
 }
 
 register_activation_hook( __FILE__, 'htaccess_ip_block_install' );
-
-
 
 
 class HtaccessIpBlock {
@@ -41,30 +39,19 @@ class HtaccessIpBlock {
 	const IMPORT_WF_IPS_ACTION_NAME = 'hrm_import_wf_ips';
 	const IMPORT_WF_IPS_NONCE_MSG = 'hrm_import_wf_ips_sdjfh';
 
-	/**
-	 * Holds the values to be used in the fields callbacks
-	 */
-	private $options;
 
-	/**
-	 * Start up
-	 */
 	public function __construct() {
-		if(is_multisite()){
-			add_action('network_admin_menu', [$this, 'add_plugin_page_network']);
-		}
-		else {
+		if ( is_multisite() ) {
+			add_action( 'network_admin_menu', [ $this, 'add_plugin_page_network' ] );
+		} else {
 			add_action( 'admin_menu', [ $this, 'add_plugin_page' ] );
 		}
 
 		add_action( 'admin_init', [ $this, 'page_init' ] );
 	}
 
-	/**
-	 * Add options page
-	 */
 	public function add_plugin_page() {
-		add_menu_page( '.htaccess IP Block',
+		add_menu_page( '&lt;.htaccess&gt; IP Block',
 			'<.ht> IP Block',
 			'manage_options',
 			'htaccess_ip_block',
@@ -79,13 +66,10 @@ class HtaccessIpBlock {
 			array( $this, 'create_admin_page' ) );
 	}
 
-	/**
-	 * Options page callback
-	 */
 	public function create_admin_page() {
 
 		{
-			?><h1><.htaccess> IP block Map</h1>
+			?><h1><.htaccess> IP block</h1>
 
 			<table class="form-table" style="width: 100%;">
 
@@ -93,23 +77,30 @@ class HtaccessIpBlock {
 					<th scope="row">This plugin requires:</th>
 					<td>
 						<ol>
-							<li><b>Advanced user!</b> if you are in doubt do not procced!</li>
+							<li><b>Advanced user!</b> if you are in doubt consult a competent user!</li>
 							<li>Access to Apache server configuration.</li>
-							<li>Add these lines to your <b>apache server configuration</b> (make sure to add to the desginated site (virtual host) not the entire server.)
-								<pre style="background: darkgray;padding: 15px;">RewriteEngine On
-RewriteMap deny txt:<?= get_home_path() . self::getFileName(); ?></pre>
-								and these line to your <b>.htaccess file</b> in "<?= get_home_path(); ?>"
-								<pre style="background: darkgray;padding: 15px;">RewriteEngine On
-RewriteCond ${deny:%{REMOTE_ADDR}} deny [NC]
-RewriteRule ^ - [L,F]</pre>
-								<font color="#8b0000">*If you disable this plugin <b>remember</b> to <b>remove</b> these
-									configurations!</font>
-							</li>
-							<?php if(!is_writable(get_home_path() . self::getFileName())) {
-								?><li>You need to create this file "<?= get_home_path() . self::getFileName(); ?>" manually.</li><?php
+							<?php if ( ! is_writable( get_home_path() . self::getFileName() ) ) {
+								?>
+								<li>You need to create this file "<?= get_home_path() . self::getFileName(); ?>"
+								manually before proceeding.</li><?php
 							}
 							?>
-							<li>Now you can restart apache server so the changes on 3 takes effect.</li>
+							<li>Add these lines to your <b>apache server configuration</b>
+<pre style="background: darkgray;padding: 15px;">RewriteEngine On
+RewriteMap deny txt:<?= get_home_path() . self::getFileName(); ?></pre>
+								<font color="#8b0000">*If you disable the plugin <b>remember</b> to <b>remove</b> these
+									configurations!</font>
+							</li>
+							<li>Add these line to your <b>.htaccess file</b> in <b>"<?= get_home_path(); ?>"</b>
+<pre style="background: darkgray;padding: 15px;"># BEGIN .htaccess IP block plugin
+&lt;IfModule mod_rewrite.c&gt;
+RewriteEngine On
+RewriteCond ${deny:%{REMOTE_ADDR}} deny [NC]
+RewriteRule ^ - [L,F]
+&lt;/IfModule&gt;
+# END .htaccess IP block plugin</pre>
+							</li>
+							<li>Now restart apache server so the changes on 3 takes effect.</li>
 							<li>Enjoy blocking IPs!</li>
 						</ol>
 					</td>
@@ -120,26 +111,34 @@ RewriteRule ^ - [L,F]</pre>
 					<td>
 						<input type="text" id="manual_ip" placeholder="xxx.xxx.xxx.xxx"/>
 						<input type="button" name="manual_block_button" id="manual_block_button" class="button button-primary" value="Block"/>
-						<br >
+						<br>
 						<?php
-						if ( is_plugin_active( 'wordfence/wordfence.php' ) ) {
+						if ( is_plugin_active( 'wordfence/wordfence.php' )
+						     and method_exists(new wfLog(), 'blockIP') ) {
 
-							?><input type="checkbox" name="block_on_wordfence" id="block_on_wordfence" value="block" checked />Block on Wordfence too<?php
+							?>
+							<input type="checkbox" name="block_on_wordfence" id="block_on_wordfence" value="block" checked/>Block on Wordfence too<?php
 						}
 						?>
-						<br >
+						<br>
 						<span id="status_of_manual_block"></span>
 					</td>
 				</tr>
 
 				<?php
-				if ( is_plugin_active( 'wordfence/wordfence.php' ) ) {
+				if ( is_plugin_active( 'wordfence/wordfence.php' )
+				and method_exists(new wfActivityReport(), 'getTopIPsBlocked') ) {
 
-					?><tr valign="top">
+					?>
+					<tr valign="top">
 						<th scope="row">Import from Wordfence</th>
 						<td>
 							<input type="button" name="import_wordfence_ips" id="import_wordfence_ips" class="button button-primary" value="Import"/>
+							<br>
 							<span id="number_of_imported_ips"></span>
+							<br>
+							<span><i>*This imports top blocked IPs from wordfence and add them to .htaccess IP block</i></span>
+
 						</td>
 					</tr><?php
 				}
@@ -149,11 +148,13 @@ RewriteRule ^ - [L,F]</pre>
 					<td colspan="2">
 						<div id="notif">
 							<ul>
-								<?php
-								$wp_list_table = new IpListTable();
-								$wp_list_table->prepare_items();
-								$wp_list_table->display();
-								?>
+								<form id="htaccess-ip-block-list-table-form" method="post">
+									<?php
+									$wp_list_table = new IpListTable();
+									$wp_list_table->prepare_items();
+									$wp_list_table->display();
+									?>
+								</form>
 							</ul>
 						</div>
 					</td>
@@ -165,9 +166,6 @@ RewriteRule ^ - [L,F]</pre>
 		}
 	}
 
-	/**
-	 * Register and add settings
-	 */
 	public function page_init() {
 		register_setting(
 			'my_option_group', // Option group
@@ -203,7 +201,7 @@ RewriteRule ^ - [L,F]</pre>
 		global $wpdb;
 
 		$table_name = $wpdb->prefix . self::SQL_TABLE_NAME;
-		$results = $wpdb->get_results( "SELECT ip FROM " . $table_name );
+		$results    = $wpdb->get_results( "SELECT ip FROM " . $table_name );
 
 		$file_name = get_home_path() . self::getFileName();
 
@@ -232,9 +230,11 @@ RewriteRule ^ - [L,F]</pre>
 
 		if ( empty( $results ) ) {
 			$wpdb->insert( $table_name, array( 'ip' => $ip ), array( '%s' ) );
+
 			return 1; // add ip to the map
 		}
-		return -1; // ip already in the map
+
+		return - 1; // ip already in the map
 	}
 
 	public static function deleteIpFromBlacklistMap( $id ) {
@@ -242,18 +242,20 @@ RewriteRule ^ - [L,F]</pre>
 
 		$table_name = $wpdb->prefix . self::SQL_TABLE_NAME;
 
-		$results    = $wpdb->get_results( $wpdb->prepare(
+		$results = $wpdb->get_results( $wpdb->prepare(
 			"SELECT id FROM " . $table_name . " WHERE id = %s", $id
 		) );
 
-		if ( !empty( $results ) ) {
+		if ( ! empty( $results ) ) {
 			$wpdb->delete( $table_name, array( 'id' => $id ) );
+
 			return 1; // ip deleted from the map
 		}
-		return -1; // ip not in the map!
+
+		return - 1; // ip not in the map!
 	}
 
-	public static function importIpsFromWordfence( ) {
+	public static function importIpsFromWordfence() {
 
 		$wfReport = new wfActivityReport();
 
@@ -265,24 +267,24 @@ RewriteRule ^ - [L,F]</pre>
 			$ipVal = wfUtils::inet_ntop( $ip->IP );
 			self::addIpToBlacklistMap( $ipVal );
 
-			$counter++;
+			$counter ++;
 		}
 		self::writeIPsMap();
+
 		return $counter;
 	}
 
-	public static function getFileName(){
-		return get_option('HTACCESS_IP_BLOCK_FILE_MAP_NAME');
+	public static function getFileName() {
+		return get_option( 'HTACCESS_IP_BLOCK_FILE_MAP_NAME' );
 	}
 
 	public static function createHtaccessMapFile() {
 		$file_name = get_home_path() . self::getFileName();
-		if(is_writable($file_name)) {
+		if ( is_writable( $file_name ) ) {
 			$file = fopen( $file_name, 'w' );
 			fclose( $file );
-		}
-		else {
-			echo $file_name. 'is not writable! try creating the file manually!';
+		} else {
+			echo $file_name . 'is not writable! try creating the file manually!';
 		}
 	}
 
@@ -304,13 +306,14 @@ RewriteRule ^ - [L,F]</pre>
 		dbDelta( $sql );
 	}
 
-	public static function generateRandomString($length = 10) {
-		$characters = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
-		$charactersLength = strlen($characters);
-		$randomString = '';
-		for ($i = 0; $i < $length; $i++) {
-			$randomString .= $characters[rand(0, $charactersLength - 1)];
+	public static function generateRandomString( $length = 10 ) {
+		$characters       = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
+		$charactersLength = strlen( $characters );
+		$randomString     = '';
+		for ( $i = 0; $i < $length; $i ++ ) {
+			$randomString .= $characters[ rand( 0, $charactersLength - 1 ) ];
 		}
+
 		return $randomString;
 	}
 }
@@ -321,3 +324,4 @@ require_once( HTACCESS_IP_BLOCK_PATH . 'inc/ajax.php' );
 if ( is_admin() ) {
 	new HtaccessIpBlock();
 }
+?>

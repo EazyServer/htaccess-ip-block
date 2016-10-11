@@ -34,6 +34,7 @@
 				jQuery( '#manual_block_button' ).prop( 'disabled', false ).val( 'Block' );
 				if(response == 1) {
 					jQuery( '#status_of_manual_block' ).html(jQuery( '#manual_ip' ).val()+' blocked successfully.');
+					jQuery('#htaccess-ip-block-list-table-form').load('#htaccess-ip-block-list-table-form #htaccess-ip-block-list-table-form')
 				}
 				else if(response == -1) {
 					jQuery( '#status_of_manual_block' ).html(jQuery( '#manual_ip' ).val()+' already blocked!');
@@ -57,6 +58,7 @@
 		jQuery.post( ajaxurl, data, function ( counter ) {
 			jQuery( '#import_wordfence_ips' ).prop( 'disabled', false ).val( 'Import' );
 			jQuery( '#number_of_imported_ips' ).html( '<b>'+counter+'</b> IP(s) imported successfully from Wordfence.' );
-		} );
+			jQuery('#htaccess-ip-block-list-table-form').load('#htaccess-ip-block-list-table-form #htaccess-ip-block-list-table-form')
+		});
 	}
 </script>

@@ -1312,3 +1312,4 @@ class WP_List_Table_Htaccess_Ip_Block {
 		printf( "<script type='text/javascript'>list_args = %s;</script>\n", wp_json_encode( $args ) );
 	}
 }
+?>

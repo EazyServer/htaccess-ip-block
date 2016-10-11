@@ -17,31 +17,17 @@ if(!class_exists('HtaccessIpBlock')){
 class IpListTable extends WP_List_Table_Htaccess_Ip_Block
 {
 	const SQL_TABLE_NAME = 'htaccess_map';
-	/**
-	 * Prepare the items for the table to process
-	 *
-	 * @return Void
-	 */
 
 	function __construct(){
 		global $status, $page;
 
-		//Set parent defaults
 		parent::__construct( array(
-			'singular'  => 'IP',     //singular name of the listed records
-			'plural'    => 'IPs',    //plural name of the listed records
-			'ajax'      => false        //does this table support ajax?
+			'singular'  => 'IP',
+			'plural'    => 'IPs',
+			'ajax'      => false
 		) );
 	}
 
-	/**
-	 * Define what data to show on each column of the table
-	 *
-	 * @param  Array $item        Data
-	 * @param  String $column_name - Current column name
-	 *
-	 * @return Mixed
-	 */
 	public function column_default( $item, $column_name )
 	{
 		switch( $column_name ) {
@@ -88,6 +74,24 @@ class IpListTable extends WP_List_Table_Htaccess_Ip_Block
 
 	function process_bulk_action() {
 
+		if ( isset( $_POST['_wpnonce'] ) && ! empty( $_POST['_wpnonce'] ) ) {
+
+			$nonce  = filter_input( INPUT_POST, '_wpnonce', FILTER_SANITIZE_STRING );
+			$action = 'bulk-' . $this->_args['plural'];
+
+			if ( ! wp_verify_nonce( $nonce, $action ) )
+				wp_die( 'Security check failed!' );
+
+			if( $this->current_action() === 'delete' and !empty($_POST['ip'])) {
+
+				array_map(function($id){
+					HtaccessIpBlock::deleteIpFromBlacklistMap(intval($id));
+				}, $_POST['ip']);
+
+				HtaccessIpBlock::writeIPsMap();
+			}
+		}
+
 		if( $this->current_action() === 'delete' ) {
 			if(!empty(intval($_GET['id']))) {
 				HtaccessIpBlock::deleteIpFromBlacklistMap(intval($_GET['id']));
@@ -96,28 +100,18 @@ class IpListTable extends WP_List_Table_Htaccess_Ip_Block
 		}
 	}
 
-	/**
-	 * Override the parent columns method. Defines the columns to use in your listing table
-	 *
-	 * @return Array
-	 */
 	public function get_columns()
 	{
 		$columns = array(
 			//'id'          => 'ID',
-			'cb'          => 'Select',
-			'ip'       => 'IP address',
-			'date_added'       => 'Date/Time added',
+			'cb'            => 'Select',
+			'ip'            => 'IP address',
+			'date_added'    => 'Date/Time added',
 		);
 
 		return $columns;
 	}
 
-	/**
-	 * Define the sortable columns
-	 *
-	 * @return Array
-	 */
 	public function get_sortable_columns() {
 		return array(
 			'date_added' => array('date_added', false),
@@ -158,21 +152,11 @@ class IpListTable extends WP_List_Table_Htaccess_Ip_Block
 
 	}
 
-	/**
-	 * Define which columns are hidden
-	 *
-	 * @return Array
-	 */
 	public function get_hidden_columns()
 	{
 		return array();
 	}
 
-	/**
-	 * Get the table data
-	 *
-	 * @return Array
-	 */
 	private function table_data()
 	{
 		$data = array();
@@ -185,12 +169,6 @@ class IpListTable extends WP_List_Table_Htaccess_Ip_Block
 		return $data;
 	}
 
-
-	/**
-	 * Allows you to sort the data by the variables set in the $_GET
-	 *
-	 * @return Mixed
-	 */
 	private function sort_data( $a, $b )
 	{
 		// Set defaults
@@ -220,3 +198,5 @@ class IpListTable extends WP_List_Table_Htaccess_Ip_Block
 		return -$result;
 	}
 }
+
+?>

@@ -41,3 +41,4 @@ function hmImportWordfenceIps() {
 	}
 	exit(0);
 }
+?>
