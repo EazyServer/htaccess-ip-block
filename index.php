@@ -100,7 +100,7 @@ RewriteRule ^ - [L,F]
 &lt;/IfModule&gt;
 # END .htaccess IP block plugin</pre>
 							</li>
-							<li>Now restart apache server so the changes on 3 takes effect.</li>
+							<li>Now restart apache server so changes on 3 take effect.</li>
 							<li>Enjoy blocking IPs!</li>
 						</ol>
 					</td>
