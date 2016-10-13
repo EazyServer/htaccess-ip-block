@@ -1,4 +1,4 @@
-=== &lt;.htaccess&gt; IP bloack ===
+=== &lt;.htaccess&gt; IP block ===
 
 Contributors: Yarob Al-Taay, EazyServer
 Tags: IP block, IP security, htaccess, htaccesss IP, htaccess IP block, .htaccess
